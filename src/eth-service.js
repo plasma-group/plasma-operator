@@ -1,5 +1,3 @@
-const path = require('path')
-const fs = require('fs')
 const colors = require('colors') // eslint-disable-line no-unused-vars
 const plasmaChainCompiled = require('plasma-contracts').plasmaChainCompiled
 const plasmaRegistryCompiled = require('plasma-contracts').plasmaRegistryCompiled
@@ -7,8 +5,8 @@ const serializerCompiled = require('plasma-contracts').serializerCompiled
 const Web3 = require('web3')
 const ganache = require('ganache-cli')
 const log = require('debug')('info:eth')
-const ETH_DB_FILENAME = require('./constants.js').ETH_DB_FILENAME
 const EventWatcher = require('./event-watcher.js')
+const { loadEthDB, writeEthDB } = require('./eth-db.js')
 
 const DEPLOY_REGISTRY = 'DEPLOY'
 
@@ -56,28 +54,6 @@ function _getEventWatchers (config) {
     eventWatchers[ethEvent] = new EventWatcher(es.web3, es.plasmaChain, ethEvent, config.finalityDepth, config.ethPollInterval)
   }
   return eventWatchers
-}
-
-function loadEthDB (config) {
-  const ethDBPath = path.join(config.ethDBDir, ETH_DB_FILENAME)
-  let ethDB = {}
-  if (fs.existsSync(ethDBPath)) {
-    // Load the db if it exists
-    ethDB = JSON.parse(fs.readFileSync(ethDBPath, 'utf8'))
-  }
-  if (config.plasmaRegistryAddress !== undefined) {
-    ethDB.plasmaRegistryAddress = config.plasmaRegistryAddress
-  }
-  return ethDB
-}
-
-function writeEthDB (config, ethDB) {
-  if (!fs.existsSync(config.dbDir)) {
-    log('Creating a new db directory because it does not exist')
-    fs.mkdirSync(config.dbDir, { recursive: true })
-    fs.mkdirSync(config.ethDBDir)
-  }
-  fs.writeFileSync(path.join(config.ethDBDir, ETH_DB_FILENAME), JSON.stringify(ethDB))
 }
 
 function initializeWallet (web3, privateKey) {

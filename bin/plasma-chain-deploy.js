@@ -1,34 +1,12 @@
 #!/usr/bin/env node
 const path = require('path')
-const fs = require('fs')
 const program = require('commander')
 const colors = require('colors') // eslint-disable-line no-unused-vars
 const inquirer = require('inquirer')
 const getAccount = require('./utils.js').getAccount
 const ethService = require('../src/eth-service.js')
 const readConfigFile = require('../src/utils.js').readConfigFile
-const ETH_DB_FILENAME = require('../src/constants.js').ETH_DB_FILENAME
-
-function loadEthDB (config) {
-  const ethDBPath = path.join(config.ethDBDir, ETH_DB_FILENAME)
-  let ethDB = {}
-  if (fs.existsSync(ethDBPath)) {
-    // Load the db if it exists
-    ethDB = JSON.parse(fs.readFileSync(ethDBPath, 'utf8'))
-  }
-  if (config.plasmaRegistryAddress !== undefined) {
-    ethDB.plasmaRegistryAddress = config.plasmaRegistryAddress
-  }
-  return ethDB
-}
-
-function writeEthDB (config, ethDB) {
-  if (!fs.existsSync(config.dbDir)) {
-    fs.mkdirSync(config.dbDir, { recursive: true })
-    fs.mkdirSync(config.ethDBDir)
-  }
-  fs.writeFileSync(path.join(config.ethDBDir, ETH_DB_FILENAME), JSON.stringify(ethDB))
-}
+const { loadEthDB, writeEthDB } = require('../src/eth-db.js')
 
 program
   .description('starts the operator using the first account')

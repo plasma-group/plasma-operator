@@ -57,7 +57,6 @@ describe('BlockStore', function () {
     if (!fs.existsSync(config.dbDir)) {
       log('Creating a new db directory because it does not exist')
       fs.mkdirSync(config.dbDir)
-      fs.mkdirSync(config.ethDBDir)
       fs.mkdirSync(config.txLogDir)
     }
     // Copy a sample tx log to the dbDir

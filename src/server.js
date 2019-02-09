@@ -101,7 +101,6 @@ async function startup (config) {
   if (!fs.existsSync(config.dbDir)) {
     log('Creating a new db directory because it does not exist')
     fs.mkdirSync(config.dbDir, { recursive: true })
-    fs.mkdirSync(config.ethDBDir)
   }
   try {
     // Setup web3
