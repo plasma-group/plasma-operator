@@ -14,7 +14,10 @@ const models = require('plasma-utils').serialization.models
 const SignedTransaction = models.SignedTransaction
 const debug = require('debug')
 
-debug.enable('info:state,info:block-store,info:leveldb-sum-tree')
+if (process.env.DEBUG === undefined) {
+  // If no logging is enabled, set these as defaults
+  debug.enable('info:state,info:block-store,info:leveldb-sum-tree')
+}
 
 // Set up express
 const app = express()
@@ -74,6 +77,13 @@ app.post('/api', function (req, res) {
     }
     sendMessage(stateManager, req.body).then((response) => {
       log('OUTGOING response to RPC request with method:', req.body.method, 'and rpcID:', req.body.id)
+      if (req.body.method === constants.ADD_TX_METHOD) {
+        // Have Operator sign transaction
+        const tx = new SignedTransaction(req.body.params[0])
+        console.log("Dis da hash and key", tx.hash, EthService.web3.eth.accounts.wallet[0].privateKey)
+        response.message.signature = EthService.web3.eth.accounts.sign(tx.hash, EthService.web3.eth.accounts.wallet[0].privateKey);
+      }
+      console.log("Dis is the signature", response.message.signature)
       res.send(response.message)
     })
   } else if (req.body.method === constants.GET_HISTORY_PROOF ||
