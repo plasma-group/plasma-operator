@@ -80,10 +80,8 @@ app.post('/api', function (req, res) {
       if (req.body.method === constants.ADD_TX_METHOD) {
         // Have Operator sign transaction
         const tx = new SignedTransaction(req.body.params[0])
-        console.log("Dis da hash and key", tx.hash, EthService.web3.eth.accounts.wallet[0].privateKey)
-        response.message.signature = EthService.web3.eth.accounts.sign(tx.hash, EthService.web3.eth.accounts.wallet[0].privateKey);
+        response.message.signature = EthService.web3.eth.accounts.sign(tx.hash, EthService.web3.eth.accounts.wallet[0].privateKey)
       }
-      console.log("Dis is the signature", response.message.signature)
       res.send(response.message)
     })
   } else if (req.body.method === constants.GET_HISTORY_PROOF ||
