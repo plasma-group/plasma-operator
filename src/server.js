@@ -77,6 +77,11 @@ app.post('/api', function (req, res) {
     }
     sendMessage(stateManager, req.body).then((response) => {
       log('OUTGOING response to RPC request with method:', req.body.method, 'and rpcID:', req.body.id)
+      if (req.body.method === constants.ADD_TX_METHOD) {
+        // Have Operator sign transaction
+        const tx = new SignedTransaction(req.body.params[0])
+        response.message.signature = EthService.web3.eth.accounts.sign(tx.hash, EthService.web3.eth.accounts.wallet[0].privateKey)
+      }
       res.send(response.message)
     })
   } else if (req.body.method === constants.GET_HISTORY_PROOF ||
