@@ -53,9 +53,8 @@
     "leveldown": "^4.0.1",
     "levelup": "^3.1.1",
     "lodash": "^4.17.11",
-    "plasma-contracts": "git+https://github.com/plasma-group/plasma-contracts.git",
-    "plasma-explorer": "git+https://github.com/plasma-group/plasma-explorer.git",
-    "plasma-utils": "git+https://github.com/plasma-group/plasma-utils.git",
+    "plasma-contracts": "^0.0.4-beta.2",
+    "plasma-utils": "^0.0.4-beta.2",
     "web3": "1.0.0-beta.37"
   }
 }
