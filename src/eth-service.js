@@ -122,10 +122,13 @@ async function deployNewPlasmaRegistry (config) {
 }
 
 async function initializeProdEnv (config) {
-  if (config.web3HttpProvider === undefined) {
+  if (config.web3WebsocketProvider) {
+    es.web3.setProvider(new Web3.providers.WebsocketProvider(config.web3WebsocketProvider))
+  } else if (config.web3HttpProvider === undefined) {
     throw new Error('Web3 provider undefined!')
+  } else {
+    es.web3.setProvider(new Web3.providers.HttpProvider(config.web3HttpProvider))
   }
-  es.web3.setProvider(new Web3.providers.HttpProvider(config.web3HttpProvider))
   // Check if we need to deploy a new Plasma registry.
   if (es.ethDB.plasmaRegistryAddress === DEPLOY_REGISTRY) {
     console.log('Deploying new registry...This could take some time.'.green)

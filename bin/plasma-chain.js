@@ -7,7 +7,7 @@ const path = require('path')
 
 const configFile = (process.env.CONFIG) ? process.env.CONFIG : path.join(appRoot.toString(), 'config.json')
 const config = readConfigFile(configFile)
-const isRinkeby = config.web3HttpProvider.includes('rinkeby')
+const isRinkeby = config.web3HttpProvider != undefined && config.web3HttpProvider.includes('rinkeby')
 
 const rinkebyStep2 = `# On Rinkeby testnet, send your new Operator address ~0.5 ETH.
 You can use a faucet to get test ETH for free here: ${'https://faucet.rinkeby.io/'.green}`
@@ -20,6 +20,7 @@ const customStep2 = '# On your Ethereum node, send your new Operator address ~0.
 const customStep3 = `${'$ plasma-chain deploy [-n]'.green} # deploys a new Plasma Chain. If you want
 to also deploy a new Plasma Network Registry, use the \`-n\` flag. Note you will be prompted for a unique
 Plasma Chain name & IP address (public to the Ethereum chain you deploy to)`
+const provider = config.web3WebsocketProvider != undefined ? config.web3WebsocketProvider : config.web3HttpProvider
 
 const introText = `
 ${'~~~~~~~~~plasma~~~~~~~~~chain~~~~~~~~~operator~~~~~~~~~'.rainbow}
@@ -28,7 +29,7 @@ ${'Deploy a new Plasma Chain in just a couple commands.'.white.bold} 🤞😁
 Note that Plasma Chains require a constant connection to the Ethereum network.
 You can set your Ethereum node in your config file located: ${configFile.toString().yellow}
 (All configs & DB files are located in this directory--I promise I won't pollute your home directory!)
-Right now your Web3 HTTP provider is set to: ${config.web3HttpProvider.blue}
+Right now your Web3 provider is set to: ${provider.blue}
 
 To deploy a new Plasma Chain, use the following commands:
 

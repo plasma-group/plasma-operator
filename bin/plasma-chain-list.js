@@ -24,7 +24,13 @@ program
       return
     }
     const web3 = new Web3()
-    web3.setProvider(new Web3.providers.HttpProvider(config.web3HttpProvider))
+    if (config.web3WebsocketProvider) {
+      web3.setProvider(new Web3.providers.WebsocketProvider(config.web3WebsocketProvider))
+    } else if (config.web3HttpProvider === undefined) {
+      throw new Error('Web3 provider undefined!')
+    } else {
+      web3.setProvider(new Web3.providers.HttpProvider(config.web3HttpProvider))
+    }
     const plasmaRegistryCt = new web3.eth.Contract(plasmaRegistryCompiled.abi, config.plasmaRegistryAddress)
     plasmaRegistryCt.getPastEvents('NewPlasmaChain', {
       fromBlock: 0,
@@ -48,6 +54,7 @@ Plasma Chain Address: ${plasmaChainAddress.white.bold}
 Chain IP: ${ip.white.bold}
         `)
       }
+      process.exit(0)
     })
   })
 

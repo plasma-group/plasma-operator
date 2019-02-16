@@ -67,6 +67,7 @@ program
       config.plasmaRegistryAddress = 'DEPLOY'
     }
     await ethService.startup(config)
+    process.exit(0)
   })
 
 async function setChainMetadata (config) {
