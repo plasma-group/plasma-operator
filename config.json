@@ -7,5 +7,6 @@
   "finalityDepth": "1",
   "blockTimeInSeconds": "30",
   "ethPollInterval": "3000",
-  "web3HttpProvider": "https://rinkeby.infura.io/v3/fce31f1fb2d54caa9b31ed7d28437fa5"
+  "web3HttpProvider": "https://rinkeby.infura.io/v3/fce31f1fb2d54caa9b31ed7d28437fa5",
+  "gasPrice":"5000000000"
 }

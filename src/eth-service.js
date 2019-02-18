@@ -24,28 +24,31 @@ const es = {
   ethDB: {}
 }
 
+var config;
+
 // Startup function called to initialize everything
-async function startup (config) {
+async function startup (userConfig) {
+  config = userConfig;
   es.web3 = new Web3()
   // Initalize our wallet
   initializeWallet(es.web3, config.privateKey)
   // Load the ethDB database
-  es.ethDB = loadEthDB(config)
+  es.ethDB = loadEthDB()
   // Check if we are in test mode
   if (process.env.NODE_ENV === 'test') {
-    await initializeTestingEnv(config)
+    await initializeTestingEnv()
   } else {
-    await initializeProdEnv(config)
+    await initializeProdEnv()
   }
   // Create our plasma chain es.web3 object, this will point to an existing Ethereum smart contract
   es.plasmaChain = new es.web3.eth.Contract(plasmaChainCompiled.abi, es.ethDB.plasmaChainAddress, {from: es.operatorAddress})
   // Load our event handlers
-  es.eventWatchers = _getEventWatchers(config)
+  es.eventWatchers = _getEventWatchers()
   console.log('Plasma Registry address:', es.ethDB.plasmaRegistryAddress.yellow)
   console.log('Plasma Chain address:', es.ethDB.plasmaChainAddress.yellow)
 }
 
-function _getEventWatchers (config) {
+function _getEventWatchers () {
   const eventWatchers = {}
   for (const ethEvent of Object.keys(es.plasmaChain.events)) {
     if (ethEvent.slice(0, 2) === '0x' || ethEvent.includes('(')) {
@@ -58,7 +61,7 @@ function _getEventWatchers (config) {
   return eventWatchers
 }
 
-function loadEthDB (config) {
+function loadEthDB () {
   const ethDBPath = path.join(config.ethDBDir, ETH_DB_FILENAME)
   let ethDB = {}
   if (fs.existsSync(ethDBPath)) {
@@ -71,7 +74,7 @@ function loadEthDB (config) {
   return ethDB
 }
 
-function writeEthDB (config, ethDB) {
+function writeEthDB (ethDB) {
   if (!fs.existsSync(config.dbDir)) {
     log('Creating a new db directory because it does not exist')
     fs.mkdirSync(config.dbDir, { recursive: true })
@@ -92,36 +95,36 @@ function initializeWallet (web3, privateKey) {
   console.log('Operator address:', es.operatorAddress.yellow)
 }
 
-async function initializeTestingEnv (config) {
+async function initializeTestingEnv () {
   // First get our es.web3 object which we will use. This comes with some wallets that have $ in them
-  await _setupGanache(es.web3, config)
+  await _setupGanache(es.web3)
   // Deploy a new Plasma Registry
-  await deployNewPlasmaRegistry(config)
+  await deployNewPlasmaRegistry()
   // Deploy our new Plasma Chain and save it in a file
-  es.ethDB.plasmaChainAddress = await deployNewPlasmaChain(es.web3, config)
+  es.ethDB.plasmaChainAddress = await deployNewPlasmaChain(es.web3)
   console.log('Testing mode enabled so deployed a new Plasma Registry & Plasma Chain')
-  writeEthDB(config, es.ethDB)
+  writeEthDB(es.ethDB)
 }
 
-async function deployNewPlasmaRegistry (config) {
+async function deployNewPlasmaRegistry () {
   // Deploy a new PlasmaRegistry. This requires first deploying a dummy Plasma Chain
   // We have the compiled contracts, let's create objects for them...
-  const plasmaSerializerCt = new es.web3.eth.Contract(serializerCompiled.abi, es.operatorAddress, {from: es.operatorAddress, gas: 7000000, gasPrice: '5000000000'})
-  const plasmaChainCt = new es.web3.eth.Contract(plasmaChainCompiled.abi, es.operatorAddress, {from: es.operatorAddress, gas: 7000000, gasPrice: '5000000000'})
-  const plasmaRegistryCt = new es.web3.eth.Contract(plasmaRegistryCompiled.abi, es.operatorAddress, {from: es.operatorAddress, gas: 7000000, gasPrice: '5000000000'})
+  const plasmaSerializerCt = new es.web3.eth.Contract(serializerCompiled.abi, es.operatorAddress, {from: es.operatorAddress, gas: 7000000, gasPrice: config.gasPrice})
+  const plasmaChainCt = new es.web3.eth.Contract(plasmaChainCompiled.abi, es.operatorAddress, {from: es.operatorAddress, gas: 7000000, gasPrice: config.gasPrice})
+  const plasmaRegistryCt = new es.web3.eth.Contract(plasmaRegistryCompiled.abi, es.operatorAddress, {from: es.operatorAddress, gas: 7000000, gasPrice: config.gasPrice})
   const serializer = await plasmaSerializerCt.deploy({ data: serializerCompiled.bytecode }).send()
   // To set up the Plasma Network, we need to first deploy a Plasma Chain contract
   const plasmaChain = await plasmaChainCt.deploy({ data: plasmaChainCompiled.bytecode }).send()
   // Finally deploy the Plasma Registry and save the address in our ethDB
   const plasmaRegistry = await plasmaRegistryCt.deploy({ data: plasmaRegistryCompiled.bytecode }).send()
   es.ethDB.plasmaRegistryAddress = plasmaRegistry.options.address
-  writeEthDB(config, es.ethDB)
+  writeEthDB(es.ethDB)
   log('Deployed a Plasma Registry at', es.ethDB.plasmaRegistryAddress)
   // Initialize the registry
   await plasmaRegistry.methods.initializeRegistry(plasmaChain.options.address, serializer.options.address).send()
 }
 
-async function initializeProdEnv (config) {
+async function initializeProdEnv () {
   if (config.web3HttpProvider === undefined) {
     throw new Error('Web3 provider undefined!')
   }
@@ -132,7 +135,7 @@ async function initializeProdEnv (config) {
     if (config.web3HttpProvider !== undefined && config.web3HttpProvider.includes('rinkeby')) {
       console.log('View transaction progress on Etherscan:', 'https://rinkeby.etherscan.io/address/'.blue + es.operatorAddress.blue)
     }
-    await deployNewPlasmaRegistry(config)
+    await deployNewPlasmaRegistry()
     log('New registry at address:', es.ethDB.plasmaRegistryAddress)
     es.ethDB.plasmaChainAddress = undefined
   }
@@ -147,13 +150,13 @@ async function initializeProdEnv (config) {
     es.ethDB.plasmaChainAddress = await deployNewPlasmaChain(es.web3, config)
     console.log('No Plasma Chain contract detected! Deploying an new one...'.green)
     log('Deployed Plasma Chain to address:', es.ethDB.plasmaChainAddress)
-    writeEthDB(config, es.ethDB)
+    writeEthDB(es.ethDB)
   } else {
     console.log('Plasma Chain contract already deployed. Skipping deployment...'.green)
   }
 }
 
-async function deployNewPlasmaChain (web3, config) {
+async function deployNewPlasmaChain (web3) {
   // We have the compiled contracts, let's create objects for them...
   const plasmaRegistry = new web3.eth.Contract(plasmaRegistryCompiled.abi, es.ethDB.plasmaRegistryAddress)
   let createPChainReciept
@@ -162,7 +165,7 @@ async function deployNewPlasmaChain (web3, config) {
     if (config.web3HttpProvider !== undefined && config.web3HttpProvider.includes('rinkeby')) {
       console.log('View transaction progress on Etherscan:', 'https://rinkeby.etherscan.io/address/'.blue + es.operatorAddress.blue)
     }
-    createPChainReciept = await plasmaRegistry.methods.createPlasmaChain(es.operatorAddress, Buffer.from(config.plasmaChainName), Buffer.from(config.operatorIpAddress)).send({ from: es.operatorAddress, gas: 800000, gasPrice: '5000000000' })
+    createPChainReciept = await plasmaRegistry.methods.createPlasmaChain(es.operatorAddress, Buffer.from(config.plasmaChainName), Buffer.from(config.operatorIpAddress)).send({ from: es.operatorAddress, gas: 800000, gasPrice: config.gasPrice })
   } catch (err) {
     if (err.toString().includes('gas * price')) {
       console.log('ERROR DEPLOYING CHAIN'.red, '\nYou do not have enough ETH to pay for the deployment.\nGet some using a faucet (https://faucet.rinkeby.io/)')
@@ -193,7 +196,7 @@ async function _startGanacheServer (server, port) {
   })
 }
 
-async function _setupGanache (web3, config) {
+async function _setupGanache (web3) {
   const ganacheAccounts = []
   for (let i = 0; i < web3.eth.accounts.wallet.length; i++) {
     ganacheAccounts.push({
@@ -224,7 +227,7 @@ async function submitRootHash (rootHash) {
     log('Multiple roots attempting to be submitted at the same time. Waiting until other submit root has finished')
     await timeout(100)
   }
-  const reciept = await es.plasmaChain.methods.submitBlock('0x' + rootHash).send({gas: 400000, gasPrice: '5000000000'})
+  const reciept = await es.plasmaChain.methods.submitBlock('0x' + rootHash).send({gas: 400000, gasPrice: config.gasPrice})
   currentRootNum++
   log('Ethereum reciept for block number:', reciept.events.SubmitBlockEvent.returnValues['0'], 'wish root hash:', reciept.events.SubmitBlockEvent.returnValues['1'])
 }
