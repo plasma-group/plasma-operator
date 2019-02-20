@@ -39,6 +39,7 @@
     "mocha": "^5.2.0"
   },
   "dependencies": {
+    "aws": "0.0.3-2",
     "axios": "^0.18.0",
     "body-parser": "^1.18.3",
     "chai": "^4.2.0",
