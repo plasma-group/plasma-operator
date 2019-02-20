@@ -56,6 +56,7 @@ program
   .command('account [cmd]', 'manage accounts')
   .command('testSwarm', 'start a swarm of test nodes')
   .command('list', 'list all Plasma Chains on the Registry')
+  .command('benchmark', 'find out the transaction throughput rate your machine')
   .action((command) => {
   })
   .parse(process.argv)
