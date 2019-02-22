@@ -31,7 +31,7 @@ program
       return
     }
     console.log('Created new account with address:', newAccount.address.green)
-    const keystorePath = path.join(keystoreDirectory, new Date().toISOString() + '--' + newAccount.address)
+    const keystorePath = path.join(keystoreDirectory, new Date().getTime() + '--' + newAccount.address)
     console.log('Saving account to:', keystorePath.yellow)
     fs.writeFileSync(keystorePath, newAccount.keystoreFile)
     // Create new password file
