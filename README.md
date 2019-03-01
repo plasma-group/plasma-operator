@@ -32,6 +32,10 @@ You can also view your local block explorer at http:127.0.0.1:8000
 Open a new terminal. In this new terminal use the following command:
 $ plasma-chain testSwarm # spam your Plasma Chain with tons of test transactions 😁
 
+6) [optional] Check the maximum txs/sec throughput on your machine
+Open a new terminal. In this new terminal use the following command:
+$ plasma-chain benchmark
+
 ```
 
 ### To open your port, you may need to forward traffic from port 80 to port 3000
