@@ -53,6 +53,7 @@
     "leveldown": "^4.0.1",
     "levelup": "^3.1.1",
     "lodash": "^4.17.11",
+    "multi-lock-queue": "~1.0.2",
     "plasma-contracts": "git+https://github.com/plasma-group/plasma-contracts.git",
     "plasma-explorer": "git+https://github.com/plasma-group/plasma-explorer.git",
     "plasma-utils": "git+https://github.com/plasma-group/plasma-utils.git",
