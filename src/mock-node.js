@@ -16,6 +16,9 @@ const fakeSig = {
   s: '0000000000000000000000000000000000000000000000000000000000000000',
 }
 
+/**
+ * Mocks a real node for testing.
+ */
 class MockNode {
   constructor(operator, account, peerList) {
     this.operator = operator
@@ -25,19 +28,47 @@ class MockNode {
     this.pendingRanges = []
   }
 
+  /**
+   * Adds a range to the list of ranges.
+   * @param {BigNum} start Start of the range.
+   * @param {BigNum} end End of the range.
+   */
+  addRange(start, end) {
+    utils.addRange(this.ranges, start, end)
+  }
+
+  /**
+   * Removes a range from the list of ranges.
+   * @param {BigNum} start Start of the range.
+   * @param {BigNum} end End of the range.
+   */
+  subtractRange(start, end) {
+    utils.subtractRange(this.ranges, start, end)
+  }
+
+  /**
+   * Processes any pending range updates.
+   */
   processPendingRanges() {
     for (const pr of this.pendingRanges) {
-      utils.addRange(this.ranges, pr[0], pr[1])
+      this.addRange(pr[0], pr[1])
     }
     this.pendingRanges = []
   }
 
+  /**
+   * Deposits coins into the plasma chain.
+   * @param {BigNum} coinType Token type to deposit.
+   * @param {BigNum} amount Amount to deposit.
+   */
   async deposit(coinType, amount) {
+    // Submit the deposit.
     const encodedDeposit = await this.operator.addDeposit(
       Buffer.from(Web3.utils.hexToBytes(this.account.address)),
       coinType,
       amount
     )
+
     const deposit = new UnsignedTransaction(encodedDeposit).transfers[0]
     const start = new BN(utils.getCoinId(deposit.token, deposit.start))
     const end = new BN(utils.getCoinId(deposit.token, deposit.end))
@@ -48,35 +79,57 @@ class MockNode {
       '- end:',
       end.toString('hex')
     )
-    utils.addRange(this.ranges, new BN(start), new BN(end))
+
+    // Add the deposit to the list of ranges.
+    this.addRange(new BN(start), new BN(end))
   }
 
-  getRandomSubrange(startBound, endBound, maxSize) {
+  /**
+   * Gets a random subrange from an existing range.
+   * @param {BigNum} startBound Start of the existing range.
+   * @param {BigNum} endBound End of the existing range.
+   * @returns {Array} New range as an array of [start, end].
+   */
+  getRandomSubrange(startBound, endBound) {
+    // Compute offsets from the original range.
     const totalSize = endBound.sub(startBound).toNumber()
     const startOffset = Math.floor(Math.random() * totalSize)
     const endOffset = Math.floor(Math.random() * (totalSize - startOffset))
+
+    // Create the new range.
     const start = startBound.add(new BN(startOffset))
     const end = endBound.sub(new BN(endOffset))
     return [start, end]
   }
 
+  /**
+   * Sends a random transaction to the operator.
+   * @param {BigNum} blockNumber Block the tx should be included in.
+   * @param {number} maxSize Max coins to send.
+   * @param {boolean} isSigned If the transaciton should be signed.
+   */
   async sendRandomTransaction(blockNumber, maxSize, isSigned) {
+    // Can't send if we don't have any coins.
     if (this.ranges.length === 0) {
       log('got no money to send!')
       return
     }
+
+    // Pick a random range to send.
     let startIndex = Math.floor(Math.random() * (this.ranges.length / 2))
     startIndex -= startIndex % 2
+
+    // Figure out the start/end bounds of that range.
     const startBoundId = this.ranges[startIndex]
     const endBoundId = this.ranges[startIndex + 1]
-    // Come up with a random range within some bounds
     const startBound = new BN(
       startBoundId.toArrayLike(Buffer, 'big', 16).slice(TYPE_BYTE_SIZE)
     )
     const endBound = new BN(
       endBoundId.toArrayLike(Buffer, 'big', 16).slice(TYPE_BYTE_SIZE)
     )
-    // Get the actual thing
+
+    // Compute the actual random range to send.
     let start, end
     if (maxSize === undefined) {
       ;[start, end] = this.getRandomSubrange(startBound, endBound)
@@ -89,15 +142,16 @@ class MockNode {
     )
     const startId = new BN(utils.getCoinId(type, start))
     const endId = new BN(utils.getCoinId(type, end))
-    // Get a random recipient that isn't us
-    let recipient = this.peerList[
-      Math.floor(Math.random() * this.peerList.length)
-    ]
+
+    // Get a random recipient that isn't us.
+    let recipient = this
     while (recipient === this) {
       recipient = this.peerList[
         Math.floor(Math.random() * this.peerList.length)
       ]
     }
+
+    // Create the transaction.
     const tx = this.makeTx(
       {
         sender: this.account.address,
@@ -109,14 +163,16 @@ class MockNode {
       blockNumber,
       isSigned
     )
-    // Add transaction
+
+    // Submit the transaction.
     const txResult = await this.operator.addTransaction(tx)
     if (txResult.error !== undefined) {
       // This means we got an error! Probably need to update the block number
       log('Error in transaction! We may need to update the block number...')
       return false
     }
-    // Update ranges
+
+    // Try to update ranges if the send was successful.
     log(
       this.account.address,
       'trying to send a transaction with',
@@ -125,19 +181,26 @@ class MockNode {
       '-- end',
       new BN(endId).toString('hex')
     )
-    // TODO: Move this over to the range manager code in `core`
     try {
-      utils.subtractRange(this.ranges, startId, endId)
+      this.subtractRange(startId, endId)
     } catch (err) {
+      // TODO: Figure out how to handle this.
       console.log('WARNING: squashing subtract range error')
       return
-      // throw err
     }
+
     recipient.pendingRanges.push([new BN(startId), new BN(endId)])
     log('sent a transaction!')
   }
 
+  /**
+   * Creates a transaction.
+   * @param {Array} tr Transfers in the transaction.
+   * @param {BigNum} block Block in which the tx should be included.
+   * @param {boolean} isSigned Whether the tx should be signed.
+   */
   makeTx(tr, block, isSigned) {
+    // Create the signature.
     let sig
     if (isSigned) {
       const txHash = new UnsignedTransaction({ block, transfers: [tr] }).hash
@@ -146,6 +209,8 @@ class MockNode {
     } else {
       sig = fakeSig
     }
+
+    // Create the transaction object.
     const tx = new SignedTransaction({
       transfers: [tr],
       signatures: [sig],

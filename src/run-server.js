@@ -7,7 +7,11 @@ const configFile = process.env.CONFIG
   : path.join(__dirname, '../config.json')
 const config = readConfigFile(configFile)
 
-async function startup() {
+/**
+ * Starts the server.
+ */
+const startup = async () => {
   await server.startup(config)
 }
+
 startup()
