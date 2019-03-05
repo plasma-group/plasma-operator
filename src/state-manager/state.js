@@ -2,6 +2,7 @@ const fs = require('fs-extra')
 const Web3 = require('web3')
 const BN = Web3.utils.BN
 const log = require('debug')('info:state')
+const config = require('./../config')
 const models = require('plasma-utils').serialization.models
 const UnsignedTransaction = models.UnsignedTransaction
 const SignedTransaction = models.SignedTransaction
@@ -85,6 +86,9 @@ class State {
       log('Creating a new tx-log directory')
       fs.mkdirSync(this.txLogDirectory)
     }
+
+    const txnBucketName = config.get('txn_bucket')
+
     // Open a write stream for our tx log
     if (fs.existsSync(this.tmpTxLogFile)) {
       console.log('WARNING:'.yellow, `Partially complete transaction log detected.
