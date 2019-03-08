@@ -5,6 +5,9 @@ history-db
 state-db
 operator-keystore
 
+# Integration Testing
+test-fixtures
+
 # Vim
 *.swp
 

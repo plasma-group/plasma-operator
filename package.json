@@ -40,9 +40,11 @@
   },
   "dependencies": {
     "aws": "0.0.3-2",
+    "aws-sdk-mock": "^4.3.1",
     "axios": "^0.18.0",
     "body-parser": "^1.18.3",
     "chai": "^4.2.0",
+    "chokidar": "^2.1.2",
     "colors": "^1.3.3",
     "commander": "^2.19.0",
     "convict": "^4.4.1",
@@ -59,6 +61,8 @@
     "plasma-contracts": "git+https://github.com/plasma-group/plasma-contracts.git",
     "plasma-explorer": "git+https://github.com/plasma-group/plasma-explorer.git",
     "plasma-utils": "git+https://github.com/plasma-group/plasma-utils.git",
+    "rimraf": "^2.6.3",
+    "sinon-chai": "^3.3.0",
     "web3": "1.0.0-beta.37"
   }
 }
