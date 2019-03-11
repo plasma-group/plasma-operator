@@ -26,8 +26,6 @@ class S3BlockProducer {
     this.txLogDirectory = txLogDirectory
     this.uploadQueue = []
     this.fileListeners = fileListeners || []
-    // block producer will silently no-op if not configured.
-    this.active = false
   }
 
   async init () {
@@ -39,7 +37,6 @@ class S3BlockProducer {
     if (this.txBucketName.length > 0) {
       try {
         await S3.headBucket({ Bucket: this.txBucketName }).promise()
-        this.active = true
       } catch (e) {
         console.log(e)
         throw new Error(`S3 bucket ${this.txBucketName} non-existent or inaccessible.`)
