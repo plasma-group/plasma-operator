@@ -1,14 +1,18 @@
 // Manages uploads of txn logs to S3
 
 const fs = require('fs-extra')
+const log = require('debug')('info:state')
 const path = require('path')
 const klaw = require('klaw')
 const chokidar = require('chokidar')
 const AWS = require('aws-sdk')
 const _ = require('lodash')
+const sleep = require('util').promisify(setTimeout)
 let S3
 
 const TEMP_FILE_NAME = 'tmp-tx-log.bin'
+const UPLOAD_TASK_INTERVAL_MS = 1000
+const UPLOAD_ERROR_THRESHOLD = 5
 
 class S3BlockProducer {
   /**
@@ -26,6 +30,10 @@ class S3BlockProducer {
     this.txLogDirectory = txLogDirectory
     this.uploadQueue = []
     this.fileListeners = fileListeners || []
+    // interval associated with the upload task
+    this.queueUploadTaskTimer = null
+    // the index of the latest uploaded block
+    this.currentBlock = -1
   }
 
   async init () {
@@ -39,7 +47,7 @@ class S3BlockProducer {
         await S3.headBucket({ Bucket: this.txBucketName }).promise()
       } catch (e) {
         console.log(e)
-        throw new Error(`S3 bucket ${this.txBucketName} non-existent or inaccessible.`)
+        throw new Error(`S3 bucket "${this.txBucketName}" non-existent or inaccessible.`)
       }
       
       // Setup file monitor for new blocks
@@ -47,6 +55,9 @@ class S3BlockProducer {
 
       // Fill transfer queue backlog
       await this.initUploadBacklog()
+
+      // Start S3 queue uploader task in background (no await)
+      this.initQueueUploader()
 
     }
   }
@@ -60,15 +71,21 @@ class S3BlockProducer {
     })
     const watcherSetup = () => new Promise((resolve) => {
       watcher
-      .on('add', path => {
-        if (path.indexOf(TEMP_FILE_NAME) == -1) {
+      .on('add', blockPath => {
+        if (blockPath.indexOf(TEMP_FILE_NAME) == -1) {
           // prevent duplicate entries
-          if (_.findIndex(this.uploadQueue, (item) => item == path) == -1) {
-            this.uploadQueue.push(path)
+          if (_.findIndex(this.uploadQueue, (item) => item == blockPath) == -1) {
+            const blockIdx = +path.basename(blockPath)
+            // don't queue uploaded blocks
+            if (blockIdx > this.currentBlock) {
+              this.uploadQueue.push(blockPath)
+              // ensure queue is sorted in case file events arrive out of order
+              this.uploadQueue.sort()
+            }
           }
           // fire the file listeners - mainly for integration testing
           for (const listener of this.fileListeners) {
-            listener(path)
+            listener(blockPath)
           }
         }
       })
@@ -105,6 +122,7 @@ class S3BlockProducer {
     }
     // get the top key stored in S3
     const topS3Key = await getHighestS3Block(this.txBucketName)
+    this.currentBlock = topS3Key
 
     const backlog = []
 
@@ -123,6 +141,53 @@ class S3BlockProducer {
     // ensure blocks are uploaded in ascending order
     this.uploadQueue = backlog.concat(this.uploadQueue)
     this.uploadQueue.sort()
+  }
+
+  // kick-off queue uploader task
+  async initQueueUploader() {
+
+    let missingBlockErrorCount = 0
+
+    while (true) {
+      if (this.uploadQueue.length > 0) {
+        const nextBlockPath = this.uploadQueue[0]
+        const nextBlock = path.basename(nextBlockPath)
+        // if next item in queue is currentBlock + 1
+        if (+nextBlock === this.currentBlock + 1) {
+          // continue with upload, set error count to 0, log block # uploaded
+          missingBlockErrorCount = 0
+          try {
+            await uploadFileToS3(nextBlockPath)
+            this.uploadQueue = this.uploadQueue.slice(1)
+            log(`S3 upload task completed transfer of Block #${nextBlock}`)
+          } catch (e) {
+            log(`S3 upload task failed to upload Block #${nextBlock} due to error - ${e.toString()}`)
+          }
+        } else {
+          // increase error count
+          missingBlockErrorCount++
+          // if error threshold reached, log an error
+          if (missingBlockErrorCount == UPLOAD_ERROR_THRESHOLD) {
+            log(`S3 upload task is missing Block #${this.currentBlock + 1} and stalled until file is queued.`)
+          }
+        }
+      }
+
+      await sleep(UPLOAD_TASK_INTERVAL_MS)
+    }
+
+  }
+
+  // upload a file to S3 from the given local filepath
+  async uploadFileToS3(filePath) {
+    const key = path.basename(filePath)
+    const fileStream = fs.createReadStream(filePath)
+    const params = {
+      Bucket: this.bucketName,
+      Key: key,
+      Body: fileStream
+    }
+    await S3.putObject(params).promise()
   }
 }
 
