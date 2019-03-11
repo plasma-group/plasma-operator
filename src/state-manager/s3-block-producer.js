@@ -43,7 +43,7 @@ class S3BlockProducer {
       }
       
       // Setup file monitor for new blocks
-      await this.setupFileMonitor()
+      await this.initFileMonitor()
 
       // Fill transfer queue backlog
       await this.initUploadBacklog()
@@ -51,7 +51,7 @@ class S3BlockProducer {
     }
   }
   
-  async setupFileMonitor () {
+  async initFileMonitor () {
     let watcher = chokidar.watch(this.txLogDirectory, {
       ignored: /(^|[\/\\])\../,
       persistent: true,
