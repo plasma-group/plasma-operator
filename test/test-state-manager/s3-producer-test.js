@@ -17,9 +17,6 @@ const web3 = require('web3')
 const S3BlockProducer = require('../../src/state-manager/s3-block-producer')
 const BLOCKNUMBER_BYTE_SIZE = require('./../../src/constants').BLOCKNUMBER_BYTE_SIZE
 const BN = web3.utils.BN
-
-process.env.CHOKIDAR_USEPOLLING = true
-
 const expect = chai.expect
 
 function getFixturePath (subPath) {
