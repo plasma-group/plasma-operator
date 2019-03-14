@@ -7,7 +7,6 @@ const _ = require('lodash')
 const sysPath = require('path')
 const rimraf = require('rimraf')
 const fs = require('fs-extra')
-const chokidar = require('chokidar')
 const chai = require('chai')
 const sinon = require('sinon')
 chai.should()
@@ -68,9 +67,13 @@ beforeEach(function() {
 
 afterEach(() => {
   AWS.restore('S3')
+  // shut down s3 uploader instance
+  if (this.uploader) {
+    this.uploader.stop()
+  }
 })
 
-const waitFor = (spies) => new Promise((resolve) => {
+const waitFor = (spies, delay) => new Promise((resolve) => {
   function isSpyReady(spy) {
     return Array.isArray(spy) ? spy[0].callCount >= spy[1] : spy.callCount
   }
@@ -82,7 +85,7 @@ const waitFor = (spies) => new Promise((resolve) => {
   let intrvl = setInterval(function() {
     if (spies.every(isSpyReady)) finish()
   }, 5)
-  let to = setTimeout(finish, 3500)
+  let to = setTimeout(finish, delay || 3500)
 })
 
 describe('filesystem integration testing', () => {
@@ -97,7 +100,7 @@ describe('filesystem integration testing', () => {
       filenames.forEach((file) => {
         fs.writeFileSync(file, 'b')
       })
-      const s3Uploader = new S3BlockProducer('test-bucket', fixturePath)
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath})
       await s3Uploader.init()
       expect(s3Uploader.uploadQueue).to.be.eql(filenames)
     })
@@ -108,6 +111,7 @@ describe('filesystem integration testing', () => {
         // put first block into bucket
         Key: new BN(0).toString(10, BLOCKNUMBER_BYTE_SIZE * 2)
       }]})
+      AWS.mock('S3', 'putObject', {})
 
       // create 3 "blocks" locally
       let fixturePath = getFixturePath('')
@@ -115,7 +119,7 @@ describe('filesystem integration testing', () => {
       filenames.forEach((file) => {
         fs.writeFileSync(file, 'b')
       })
-      const s3Uploader = new S3BlockProducer('test-bucket', fixturePath)
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath})
       await s3Uploader.init()
       // first file key is already in S3 so only include last two in queue
       expect(s3Uploader.uploadQueue).to.be.eql(filenames.slice(1))
@@ -130,7 +134,7 @@ describe('filesystem integration testing', () => {
       const newFilePath = sysPath.join(fixturePath, new BN(5).toString(10, BLOCKNUMBER_BYTE_SIZE * 2))
       // use a file listener to await new file event
       const fileSpy = sinon.spy()
-      const s3Uploader = new S3BlockProducer('test-bucket', fixturePath, [fileSpy])
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath, fileListeners: [fileSpy]})
       await s3Uploader.init()
       // add block number 5 file
       fs.writeFileSync(newFilePath, 'b')
@@ -163,13 +167,97 @@ describe('filesystem integration testing', () => {
 
       // use a file listener to await new file event
       const fileSpy = sinon.spy()
-      const s3Uploader = new S3BlockProducer('test-bucket', fixturePath, [fileSpy])
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath, fileListeners: [fileSpy]})
       await s3Uploader.init()
       // wait for listener to be called
       await waitFor([fileSpy])
       fileSpy.should.have.been.calledOnce
       fileSpy.should.have.been.calledWith(newFilePath)
       expect(s3Uploader.uploadQueue).to.be.eql(filenames.concat([newFilePath]))
+    })
+
+    it('should upload to s3', async () => {
+      const uploadSpy = sinon.spy()
+      AWS.mock('S3', 'headBucket', {})
+      AWS.mock('S3', 'listObjectsV2', {Contents: []})
+      AWS.mock('S3', 'putObject', (params, callback) => {
+        uploadSpy(params.Key)
+        callback()
+      })
+
+      // create 1 "block"
+      let fixturePath = getFixturePath('')
+      let blockName = new BN(0).toString(10, BLOCKNUMBER_BYTE_SIZE * 2)
+      let blockPath = sysPath.join(fixturePath, blockName)
+      fs.writeFileSync(blockPath, 'b')
+      // init s3 uploader
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath, uploadTaskInterval: 50})
+      await s3Uploader.init()
+      // check upload queue and s3 bucket
+      expect(s3Uploader.uploadQueue).to.be.eql([blockPath])
+      await waitFor([uploadSpy])
+      uploadSpy.should.have.been.calledOnce
+      uploadSpy.should.have.been.calledWith(blockName)
+      // ensure current block is updated
+      expect(s3Uploader.currentBlock).to.be.eq(+blockName)
+    })
+
+    // Ensure files are uploaded to s3 only in a strict sequence. 
+    // This is important to ensure consistency for downstream services and topKey lookup.
+    it('should upload to s3 only in a strict sequence', async () => {
+      const uploadSpy = sinon.spy()
+      AWS.mock('S3', 'headBucket', {})
+      AWS.mock('S3', 'listObjectsV2', {Contents: []})
+      AWS.mock('S3', 'putObject', (params, callback) => {
+        uploadSpy(params.Key)
+        callback()
+      })
+
+      // create a "block" with a gap in block number (starting from 1 instead of 0)
+      let fixturePath = getFixturePath('')
+      let blockName = new BN(1).toString(10, BLOCKNUMBER_BYTE_SIZE * 2)
+      let blockPath = sysPath.join(fixturePath, blockName)
+      fs.writeFileSync(blockPath, 'b')
+      // init s3 uploader
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath, uploadTaskInterval: 100})
+      await s3Uploader.init()
+      // check upload queue and s3 bucket
+      expect(s3Uploader.uploadQueue).to.be.eql([blockPath])
+      await waitFor([uploadSpy], 1000)
+      uploadSpy.should.not.have.been.calledOnce
+      // ensure current block is NOT updated
+      expect(s3Uploader.currentBlock).to.be.eq(-1)
+    })
+
+    // ensure upload process continues after the first file
+    it('should upload multiple files to s3 in sequence', async () => {
+      const uploadSpies = [sinon.spy(), sinon.spy(), sinon.spy()]
+      let spyCounter = 0
+      AWS.mock('S3', 'headBucket', {})
+      AWS.mock('S3', 'listObjectsV2', {Contents: []})
+      AWS.mock('S3', 'putObject', (params, callback) => {
+        uploadSpies[spyCounter++](params.Key)
+        callback()
+      })
+
+      // create 3 "blocks" locally
+      let fixturePath = getFixturePath('')
+      let filenames = new Array(3).fill(1).map((_, i) => sysPath.join(fixturePath, new BN(i).toString(10, BLOCKNUMBER_BYTE_SIZE * 2)))
+      filenames.forEach((file) => {
+        fs.writeFileSync(file, 'b')
+      })
+      // init s3 uploader
+      const s3Uploader = this.uploader = new S3BlockProducer({txBucketName: 'test-bucket', txLogDirectory: fixturePath, uploadTaskInterval: 50})
+      await s3Uploader.init()
+      // check upload queue and s3 bucket
+      expect(s3Uploader.uploadQueue).to.be.eql(filenames)
+      await waitFor(uploadSpies)
+      for (const i of _.range(0, uploadSpies.length)) {
+        uploadSpies[i].should.have.been.calledOnce
+        uploadSpies[i].should.have.been.calledWith(sysPath.basename(filenames[i]))
+      }
+      // ensure current block is updated
+      expect(s3Uploader.currentBlock).to.be.eq(2)
     })
 })
 

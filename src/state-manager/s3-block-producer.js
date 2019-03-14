@@ -25,15 +25,18 @@ class S3BlockProducer {
    * @param {*} txLogDirectory The directory containing blocks
    * @param {*} fileListeners Listeners to trigger when new block files are added
    */
-  constructor (txBucketName, txLogDirectory, fileListeners) {
+  constructor ({txBucketName, txLogDirectory, fileListeners, uploadTaskInterval}) {
     this.txBucketName = txBucketName
     this.txLogDirectory = txLogDirectory
     this.uploadQueue = []
     this.fileListeners = fileListeners || []
-    // interval associated with the upload task
-    this.queueUploadTaskTimer = null
+    this.uploadTaskInterval = uploadTaskInterval || UPLOAD_TASK_INTERVAL_MS
     // the index of the latest uploaded block
     this.currentBlock = -1
+    // used to stop polling when deactivated
+    this.active = true
+    // reference to the file monitor
+    this.fileWatch = null
   }
 
   async init () {
@@ -63,7 +66,7 @@ class S3BlockProducer {
   }
   
   async initFileMonitor () {
-    let watcher = chokidar.watch(this.txLogDirectory, {
+    let watcher = this.fileWatch = chokidar.watch(this.txLogDirectory, {
       ignored: /(^|[\/\\])\../,
       persistent: true,
       // don't trigger any events for pre-exisiting files
@@ -122,7 +125,7 @@ class S3BlockProducer {
     }
     // get the top key stored in S3
     const topS3Key = await getHighestS3Block(this.txBucketName)
-    this.currentBlock = topS3Key
+    this.currentBlock = topS3Key || -1
 
     const backlog = []
 
@@ -147,8 +150,8 @@ class S3BlockProducer {
   async initQueueUploader() {
 
     let missingBlockErrorCount = 0
-
-    while (true) {
+    await sleep(this.uploadTaskInterval)
+    while (this.active) {
       if (this.uploadQueue.length > 0) {
         const nextBlockPath = this.uploadQueue[0]
         const nextBlock = path.basename(nextBlockPath)
@@ -157,8 +160,9 @@ class S3BlockProducer {
           // continue with upload, set error count to 0, log block # uploaded
           missingBlockErrorCount = 0
           try {
-            await uploadFileToS3(nextBlockPath)
+            await this.uploadFileToS3(nextBlockPath)
             this.uploadQueue = this.uploadQueue.slice(1)
+            this.currentBlock = +nextBlock
             log(`S3 upload task completed transfer of Block #${nextBlock}`)
           } catch (e) {
             log(`S3 upload task failed to upload Block #${nextBlock} due to error - ${e.toString()}`)
@@ -173,7 +177,7 @@ class S3BlockProducer {
         }
       }
 
-      await sleep(UPLOAD_TASK_INTERVAL_MS)
+      await sleep(this.uploadTaskInterval)
     }
 
   }
@@ -183,11 +187,20 @@ class S3BlockProducer {
     const key = path.basename(filePath)
     const fileStream = fs.createReadStream(filePath)
     const params = {
-      Bucket: this.bucketName,
+      Bucket: this.txBucketName,
       Key: key,
       Body: fileStream
     }
     await S3.putObject(params).promise()
+  }
+
+  async stop() {
+    // stop upload queue polling
+    this.active = false
+    // stop monitoring filesystem
+    if (this.fileWatch) {
+      this.fileWatch.close()
+    }
   }
 }
 
