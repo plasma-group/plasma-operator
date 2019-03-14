@@ -24,6 +24,7 @@ class S3BlockProducer {
    * @param {*} txBucketName The name of the S3 bucket for storing blocks
    * @param {*} txLogDirectory The directory containing blocks
    * @param {*} fileListeners Listeners to trigger when new block files are added
+   * @param {*} uploadTaskInterval Override the default uploader task polling interval
    */
   constructor ({txBucketName, txLogDirectory, fileListeners, uploadTaskInterval}) {
     this.txBucketName = txBucketName
