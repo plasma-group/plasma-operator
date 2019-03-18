@@ -11,6 +11,7 @@ const itEnd = require('../utils.js').itEnd
 const getDepositTransaction = require('../utils.js').getDepositTransaction
 const getCoinId = require('../utils.js').getCoinId
 const colors = require('colors') // eslint-disable-line no-unused-vars
+const S3Uploader = require('./s3-block-producer')
 
 const COIN_ID_PREFIX = require('../constants.js').COIN_ID_PREFIX
 const ADDRESS_PREFIX = require('../constants.js').ADDRESS_PREFIX
@@ -87,8 +88,6 @@ class State {
       fs.mkdirSync(this.txLogDirectory)
     }
 
-    const txnBucketName = config.get('txn_bucket')
-
     // Open a write stream for our tx log
     if (fs.existsSync(this.tmpTxLogFile)) {
       console.log('WARNING:'.yellow, `Partially complete transaction log detected.
@@ -96,6 +95,17 @@ class State {
         start from scratch & reingest only the finalized blocks in the transaction log.`)
     }
     this.writeStream = fs.createWriteStream(this.tmpTxLogFile, { flags: 'a' })
+    
+    const txBucketName = config.get('tx_bucket')
+
+    // kickoff s3 block syncing process if bucket is configured
+    if (txn_bucket && txn_bucket.length != 0) {
+      this.S3Uploader = S3Uploader({
+        txBucketName: txBucketName,
+        txLogDirectory: this.txLogDirectory,
+      })
+    }
+
   }
 
   async startNewBlock () {

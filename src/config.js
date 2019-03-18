@@ -8,11 +8,11 @@ let config = convict({
     default: 'development',
     env: 'NODE_ENV'
   },
-  txn_bucket: {
+  tx_bucket: {
     doc: 'The S3 bucket name for storing transaction logs',
     format: '*',
     default: '',
-    env: 'TXN_LOG_BUCKET'
+    env: 'TX_LOG_S3_BUCKET'
   }
 })
 
