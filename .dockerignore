@@ -1,0 +1,7 @@
+*
+!./bin
+!./src
+!./config.json
+!./index.js
+!./package.json
+!./package-lock.json

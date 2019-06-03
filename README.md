@@ -36,3 +36,15 @@ $ plasma-chain testSwarm # spam your Plasma Chain with tons of test transactions
 
 ### To open your port, you may need to forward traffic from port 80 to port 3000
 See: https://coderwall.com/p/plejka/forward-port-80-to-port-3000
+
+## Docker Setup
+It is also possible to run the operator in Docker via `docker-compose`.
+
+To run the operator in Docker you will (for now) need to checkout the source, so you can build the container yourself.
+
+To build the container execute `docker-compose build`.
+
+After that the steps are same as described in _Setup_ above (starting from step 1) with `plasma-chain` replaced by `docker-compose run --rm --service-ports operator`.
+
+side note: Since the current setup requires you to enter your passphrase via the commandline and has multiple steps to it, it
+is not possible to simply run `docker-compose up`.

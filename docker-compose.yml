@@ -1,0 +1,14 @@
+version: '3'
+services:
+  operator:
+    build: .
+    volumes:
+      - keystore:/app/operator-keystore
+      - db:/app/operator-db
+      - ./config.json:/app/config.json
+    ports:
+      - 3000:3000
+
+volumes:
+  keystore:
+  db:
