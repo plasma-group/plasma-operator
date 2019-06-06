@@ -5,6 +5,13 @@
 - `git` -- version 2.17.1
 - Build essentials or similar (specifically `g++` -- version 7.3.1)
 
+### Clone / cd / install:
+```
+0. $ git clone https://github.com/plasma-group/plasma-chain-operator 
+1. $ cd plasma-chain-operator
+2. $ npm install
+```
+
 ## Setup
 To deploy a new Plasma Chain, use the following commands:
 ```
